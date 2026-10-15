@@ -1,0 +1,94 @@
+name: Build and Release AutoHotkey Script
+
+on:
+  push:
+    tags:
+      - "v*"
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: windows-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Download AutoHotkey
+        run: |
+          Invoke-WebRequest -Uri "https://www.autohotkey.com/download/ahk.zip" -OutFile "ahk.zip"
+          Expand-Archive -Path "ahk.zip" -DestinationPath "ahk"
+        shell: pwsh
+
+      - name: Download Ahk2Exe Compiler
+        run: |
+          Invoke-WebRequest -Uri "https://www.autohotkey.com/download/ahk2exe.zip" -OutFile "ahk2exe.zip"
+          Expand-Archive -Path "ahk2exe.zip" -DestinationPath "ahk/Compiler"
+        shell: pwsh
+
+      - name: Compile AutoHotkey script to EXE
+        run: |
+          & "ahk/Compiler/Ahk2Exe.exe" /in "edge_search.ahk" /out "JAPE.exe" /icon "ahk/Compiler/AutoHotkey.exe"
+        shell: pwsh
+
+      - name: Get version from tag
+        id: get_version
+        run: |
+          if ($env:GITHUB_REF -match 'refs/tags/(.*)') {
+            $version = $matches[1]
+          } else {
+            $version = "dev-build"
+          }
+          echo "VERSION=$version" >> $env:GITHUB_OUTPUT
+        shell: pwsh
+
+      - name: Create Release
+        id: create_release
+        uses: actions/create-release@v1
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          tag_name: ${{ github.ref }}
+          release_name: JAPE ${{ steps.get_version.outputs.VERSION }}
+          body: |
+            ## JAPE - Just Another Productive Edger
+
+            ### What's New
+            - Automated Edge search functionality
+            - Random search term selection
+            - Intelligent scrolling simulation
+            - Comprehensive logging system
+
+            ### Downloads
+            - **JAPE.exe** - Ready-to-run executable (no installation needed)
+            - **edge_search.ahk** - Source script (requires AutoHotkey)
+
+            ### Quick Start
+            1. Download JAPE.exe
+            2. Run the executable
+            3. Open Microsoft Edge
+            4. Press Ctrl+Alt+Q to stop
+
+            See README.md for full documentation.
+          draft: false
+          prerelease: false
+
+      - name: Upload EXE to Release
+        uses: actions/upload-release-asset@v1
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          upload_url: ${{ steps.create_release.outputs.upload_url }}
+          asset_path: ./JAPE.exe
+          asset_name: JAPE.exe
+          asset_content_type: application/octet-stream
+
+      - name: Upload AHK Source to Release
+        uses: actions/upload-release-asset@v1
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          upload_url: ${{ steps.create_release.outputs.upload_url }}
+          asset_path: ./edge_search.ahk
+          asset_name: edge_search.ahk
+          asset_content_type: text/plain
